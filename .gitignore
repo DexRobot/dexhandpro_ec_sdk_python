@@ -1,0 +1,20 @@
+# build product
+build/
+out/
+
+# IDE
+.vs/
+CMakeUserPresets.json
+*.user
+
+# runtime product
+log/
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+.pytest_cache/
