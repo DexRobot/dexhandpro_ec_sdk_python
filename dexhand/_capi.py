@@ -240,16 +240,31 @@ _ErrorCallback = ctypes.CFUNCTYPE(None, ctypes.POINTER(_ErrorInfo), ctypes.c_voi
 _lib = None
 _dll_directory_handle = None
 
+_IS_WINDOWS = os.name == "nt"
+_LIBRARY_NAME = "dexhandpro.dll" if _IS_WINDOWS else "libdexhandpro.so"
+
 
 def _dll_candidates() -> List[Path]:
     package_dir = Path(__file__).resolve().parent
-    names = [
-        # Release package layout.
-        Path("lib/windows/dexhandpro.dll"),
-        # Lib source-tree build layouts.
-        Path("build/x64-release/bin/Release/dexhandpro.dll"),
-        Path("build/x64-debug/bin/Debug/dexhandpro.dll"),
-    ]
+
+    if _IS_WINDOWS:
+        names = [
+            # Release package layout.
+            Path("libs/windows") / _LIBRARY_NAME,
+            # Lib source-tree build layouts.
+            Path("build/x64-release/bin/Release") / _LIBRARY_NAME,
+            Path("build/x64-debug/bin/Debug") / _LIBRARY_NAME,
+        ]
+    else:
+        names = [
+            # Release package layout.
+            Path("libs/linux") / _LIBRARY_NAME,
+            # Lib source-tree build layouts.
+            Path("build/linux-release/bin/Release") / _LIBRARY_NAME,
+            Path("build/linux-relwithdebinfo/bin/RelWithDebInfo") / _LIBRARY_NAME,
+            Path("build/linux-debug/bin/Debug") / _LIBRARY_NAME,
+        ]
+
     candidates = []
     for root in [package_dir] + list(package_dir.parents)[:4]:
         for name in names:
@@ -258,16 +273,17 @@ def _dll_candidates() -> List[Path]:
 
 
 def _find_dll():
-    override = os.environ.get("DEXHANDPRO_DLL")
-    if override:
-        return Path(override)
+    for variable in ("DEXHANDPRO_LIB", "DEXHANDPRO_DLL"):
+        override = os.environ.get(variable)
+        if override:
+            return Path(override)
 
     for candidate in _dll_candidates():
         if candidate.is_file():
             return candidate
 
     # Fall back to the OS search path.
-    return "dexhandpro.dll"
+    return _LIBRARY_NAME
 
 
 def _load_dll():
@@ -278,7 +294,7 @@ def _load_dll():
     try:
         if isinstance(path, Path):
             directory = str(path.parent)
-            if os.name == "nt" and hasattr(os, "add_dll_directory"):
+            if _IS_WINDOWS and hasattr(os, "add_dll_directory"):
                 # Keep the handle alive for the process lifetime so dependent
                 # DLLs in the same directory stay resolvable.
                 _dll_directory_handle = os.add_dll_directory(directory)
@@ -286,10 +302,14 @@ def _load_dll():
 
         return ctypes.CDLL(path)
     except OSError as exc:
+        if _IS_WINDOWS:
+            hint = ("Install Npcap (WinPcap API compatible mode) and run as "
+                    "Administrator; or set DEXHANDPRO_LIB.")
+        else:
+            hint = ("Run as root or grant CAP_NET_RAW to the process, check "
+                    "`ldd` for missing dependencies; or set DEXHANDPRO_LIB.")
         raise DexHandLibraryError(
-            "cannot load {}: {}. Install Npcap (WinPcap API compatible mode) "
-            "and run as Administrator; or set DEXHANDPRO_DLL.".format(path, exc)
-        ) from exc
+            "cannot load {}: {}. {}".format(path, exc, hint)) from exc
 
 
 def _bind(lib) -> None:
@@ -388,8 +408,7 @@ def _bind(lib) -> None:
         ctypes.c_void_p, ctypes.c_int32, ctypes.POINTER(_DeviceInfo)]
     lib.dexhand_read_device_info.restype = ctypes.c_int32
 
-    for name in ("dexhand_restart_device",
-                 "dexhand_set_ctrl_enable", "dexhand_reset_pusher_fault"):
+    for name in ("dexhand_restart_device", "dexhand_reset_pusher_fault"):
         func = getattr(lib, name)
         func.argtypes = [ctypes.c_void_p, ctypes.c_int32]
         func.restype = ctypes.c_int32
@@ -423,12 +442,12 @@ def _get_lib():
             _bind(lib)
         except AttributeError as exc:
             raise DexHandLibraryError(
-                "dexhandpro.dll is missing C ABI symbols: {}".format(exc)) from exc
+                "native library is missing C ABI symbols: {}".format(exc)) from exc
 
         abi = int(lib.dexhand_c_abi_version())
         if abi != _ABI_VERSION:
             raise DexHandLibraryError(
-                "dexhandpro.dll ABI version {} does not match Python binding {}"
+                "native library ABI version {} does not match Python binding {}"
                 .format(abi, _ABI_VERSION))
 
         _lib = lib

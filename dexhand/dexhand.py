@@ -78,7 +78,7 @@ from ._types import (
 )
 
 
-__version__ = "1.0.1"
+__version__ = "1.0.0"
 
 
 def native_version() -> str:
@@ -605,12 +605,6 @@ class DexHandPro:
         self._require()
         self._check(self._lib.dexhand_set_fill_light(
             self._handle, int(brightness)), "set_fill_light")
-
-    def set_ctrl_enable(self, part: FingerPart, on: bool = True) -> None:
-        """Enable or disable one CTRL device."""
-        self._require()
-        self._check(self._lib.dexhand_set_ctrl_enable(
-            self._handle, int(part), 1 if on else 0), "set_ctrl_enable")
 
     def restart_all_ctrl(self) -> None:
         """Disable and re-enable every CTRL device."""

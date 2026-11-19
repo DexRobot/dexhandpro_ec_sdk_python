@@ -26,8 +26,8 @@ def main():
 
     if not interfaces:
         print("no network interface found")
-        print("check: Npcap installed (WinPcap API compatible mode), "
-              "running as Administrator")
+        print("check: NIC access (Npcap installed on Windows / root or "
+              "CAP_NET_RAW on Linux)")
         return 1
 
     print("{:<52} {:<46} {}".format("interface", "description", "EtherCAT"))
@@ -40,8 +40,8 @@ def main():
     if not with_slaves:
         print()
         print("no interface with EtherCAT slaves found")
-        print("check: hand powered, cable connected, Npcap installed, "
-              "running as Administrator")
+        print("check: hand powered, cable connected, NIC access "
+              "(Npcap on Windows / root or CAP_NET_RAW on Linux)")
         return 1
 
     print()

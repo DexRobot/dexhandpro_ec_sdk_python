@@ -2,15 +2,15 @@
 
 | **项目**      | **内容**                                   |
 | ------------- | ------------------------------------------ |
-| 文档版本      | 1.0.1                                      |
-| 文档日期      | 2026-11-13                                 |
-| Python 包版本 | `dexhand.__version__`，当前 `"1.0.1"`      |
+| 文档版本      | 1.0.0                                      |
+| 文档日期      | 2026-11-19                                 |
+| Python 包版本 | `dexhand.__version__`，当前 `"1.0.0"`      |
 | 原生 SDK 版本 | `dexhand.native_version()`，当前 `"1.0.2"` |
 | 原生接口版本  | `dexhand.native_abi_version()`，当前 `1`   |
 | 适用产品      | DexHand021Pro                              |
 | 适用固件      | 手板 EC 应用 V1.1（仅 V1.1）               |
-| 通信方式      | EtherCAT（SOEM，经 `dexhandpro.dll`）      |
-| 支持平台      | Windows 10/11 x64，64 位 Python 3.8+       |
+| 通信方式      | EtherCAT（SOEM；Windows `dexhandpro.dll` / Linux `libdexhandpro.so`） |
+| 支持平台      | Windows 10/11 x64；Ubuntu 22.04/24.04 x86_64；64 位 Python 3.8+ |
 
 ## 目录
 
@@ -27,10 +27,11 @@
 11. [诊断与错误](#11-诊断与错误)
 12. [设备操作](#12-设备操作)
 13. [类型与枚举参考](#13-类型与枚举参考)
-14. [已知限制](#14-已知限制)
-15. [常见问题](#15-常见问题)
-16. [单位约定](#16-单位约定)
-17. [修订记录](#17-修订记录)
+14. [安全须知](#14-安全须知)
+15. [已知限制](#15-已知限制)
+16. [常见问题](#16-常见问题)
+17. [单位约定](#17-单位约定)
+18. [修订记录](#18-修订记录)
 
 ---
 
@@ -38,7 +39,7 @@
 
 本文档面向使用 DexHand021Pro Python SDK 的开发者，说明 `dexhand` 模块对外公开的类、函数、枚举、数据类、异常和使用约束。
 
-Python SDK 通过随包的 `dexhandpro.dll` 与手通信，纯 Python 实现，无需编译。
+Python SDK 通过随包的原生库（Windows `dexhandpro.dll` / Linux `libdexhandpro.so`）与手通信。接口层为纯 Python（ctypes），无需编译；原生库已随 SDK 提供。
 
 ```python
 import dexhand
@@ -55,25 +56,25 @@ from dexhand import DexHandPro, ControlMode, JointId, JointTarget
 - **状态属性**（`connected`、`available`、`listening`、`pusher_count`、`product_type`）在实例关闭后返回安全默认值，不抛异常。
 - **枚举**均为 `IntEnum`，可直接与整数比较，也可作为列表下标。
 - **数据类**均为 `dataclass`，字段使用 `snake_case`。
-- 单位约定见[第 16 节](#16-单位约定)。
+- 单位约定见[第 17 节](#17-单位约定)。
 
 ### 1.2 版本接口
 
 ```python
 dexhand.__version__           # Python 包版本，str
-dexhand.native_version()      # 原生库 dexhandpro.dll 版本，str
+dexhand.native_version()      # 原生库版本，str
 dexhand.native_abi_version()  # 原生接口版本，int
-dexhand.version_info()        # "python=1.0.1 native=1.0.2 abi=1"
+dexhand.version_info()        # "python=1.0.0 native=1.0.2 abi=1"
 ```
 
-Python 包与 `dexhandpro.dll` 的接口版本不匹配时，加载会抛出 `DexHandLibraryError`。
+Python 包与原生库的接口版本不匹配时，加载会抛出 `DexHandLibraryError`。
 
 ```python
 import dexhand
 
 print(dexhand.version_info())
 if dexhand.native_abi_version() != 1:
-    raise RuntimeError("unsupported dexhandpro.dll ABI")
+    raise RuntimeError("unsupported native library ABI")
 ```
 
 ---
@@ -82,20 +83,31 @@ if dexhand.native_abi_version() != 1:
 
 ### 2.1 环境要求
 
-| **项目** | **要求**                                           |
-| -------- | -------------------------------------------------- |
-| 操作系统 | Windows 10/11 x64                                  |
-| Python   | **64 位** Python 3.8 及以上                        |
-| 原生库   | `dexhandpro.dll`（随 SDK 提供，x64 Release）       |
-| 网络依赖 | Npcap（需单独安装，不随 SDK 分发）                 |
-| 运行库   | Microsoft Visual C++ 2015–2022 x64 Redistributable |
+| **项目** | **要求**                                                           |
+| -------- | ------------------------------------------------------------------ |
+| 操作系统 | Windows 10/11 x64；Ubuntu 22.04/24.04 x86_64                      |
+| Python   | **64 位** Python 3.8 及以上                                        |
+| 原生库   | Windows `dexhandpro.dll`、Linux `libdexhandpro.so`（随 SDK 提供，x64 Release） |
+| 网络依赖 | Windows：Npcap（需单独安装，不随 SDK 分发）；Linux：无             |
+| 运行库   | Windows：Microsoft Visual C++ 2015–2022 x64 Redistributable；Linux：`libstdc++`（系统自带） |
 
-运行前确认：
+Windows 运行前确认：
 
 - 已安装 Npcap，并勾选 **WinPcap API 兼容模式**。
 - 已安装 Microsoft Visual C++ 2015–2022 x64 Redistributable。
 - 使用 **64 位** Python。32 位解释器无法加载 x64 的 `dexhandpro.dll`。
 - Npcap 默认只允许管理员访问网卡，运行程序通常需要**管理员权限**。
+
+Linux 运行前确认：
+
+- 使用 **64 位** Python（x86_64）。
+- 访问网卡需要 root 或 `CAP_NET_RAW` 能力。推荐只给 Python 解释器授予该能力：
+
+  ```bash
+  sudo setcap cap_net_raw+ep "$(readlink -f "$(command -v python3)")"
+  ```
+
+  或直接以 root 运行。
 
 ### 2.2 发布包结构
 
@@ -105,7 +117,7 @@ DexProEC_SDK_Python/
 ├── dexhand/
 │   ├── __init__.py       # 公共导出
 │   ├── dexhand.py        # DexHandPro、scan_*、版本接口
-│   ├── _capi.py          # ctypes 结构体、DLL 加载、argtypes
+│   ├── _capi.py          # ctypes 结构体、原生库加载、argtypes
 │   └── _types.py         # 枚举、数据类、异常、类型转换
 ├── examples/
 │   ├── scan.py           # 列出网卡，标注带从站的网口
@@ -114,43 +126,48 @@ DexProEC_SDK_Python/
 │   ├── tactile.py        # 触觉轮询
 │   ├── pusher.py         # 推杆移动
 │   └── move_joint.py     # 单关节移动
-└── lib/
-    └── windows/
-        └── dexhandpro.dll
+└── libs/
+    ├── windows/
+    │   └── dexhandpro.dll
+    └── linux/
+        └── libdexhandpro.so
 ```
 
-发布包以**源码目录**形式提供。使用时把 SDK 根目录加入 `sys.path`：
+发布包以**源码目录**形式提供。`dexhand/` 和 `libs/` 必须保持相对位置，不要只复制 `dexhand/` 目录，否则运行时会找不到原生库。使用时把 SDK 根目录加入 `sys.path`：
 
 ```python
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(r"C:\path\to\DexProEC_SDK_Python")))
+sys.path.insert(0, str(Path(r"C:\path\to\DexProEC_SDK_Python")))  # Linux: "/opt/dexhand/DexProEC_SDK_Python"
 import dexhand
 ```
 
-也可以设置 `PYTHONPATH`，或把 `dexhand` 目录复制到项目目录中。`examples/` 下的脚本已内置同样的路径处理，可直接运行。
+也可以设置 `PYTHONPATH`，或把整个 SDK 目录（至少包含 `dexhand/` 和 `libs/`）复制或链接到项目目录中。`examples/` 下的脚本已内置同样的路径处理，可直接运行。
 
 ### 2.3 原生库加载顺序
 
-`dexhand` 按以下顺序查找 `dexhandpro.dll`：
+`dexhand` 按以下顺序查找原生库：
 
-1. 环境变量 `DEXHANDPRO_DLL` 指定的完整路径；
-2. 包目录及其最多 4 级父目录下的
-   - `lib/windows/dexhandpro.dll`
-   - `build/x64-release/bin/Release/dexhandpro.dll`
-   - `build/x64-debug/bin/Debug/dexhandpro.dll`
-3. 操作系统 DLL 搜索路径。
+1. 环境变量 `DEXHANDPRO_LIB` 或 `DEXHANDPRO_DLL` 指定的完整路径（`DEXHANDPRO_LIB` 优先，`DEXHANDPRO_DLL` 为兼容旧脚本保留）；
+2. 包目录及其最多 4 级父目录下的：
+   - Windows：`libs/windows/dexhandpro.dll`、`build/x64-release/bin/Release/dexhandpro.dll`、`build/x64-debug/bin/Debug/dexhandpro.dll`
+   - Linux：`libs/linux/libdexhandpro.so`、`build/linux-release/bin/Release/libdexhandpro.so`、`build/linux-relwithdebinfo/bin/RelWithDebInfo/libdexhandpro.so`、`build/linux-debug/bin/Debug/libdexhandpro.so`
+3. 操作系统默认库搜索路径（Windows DLL 搜索路径；Linux `ldconfig` 缓存与 `LD_LIBRARY_PATH`）。
 
-推荐直接使用随包的 `lib/windows/dexhandpro.dll`。如需指定其他位置：
+推荐直接使用随包的原生库。如需指定其他位置：
 
 ```powershell
-$env:DEXHANDPRO_DLL = "D:\path\to\Release\dexhandpro.dll"
+$env:DEXHANDPRO_LIB = "D:\path\to\Release\dexhandpro.dll"
+```
+
+```bash
+export DEXHANDPRO_LIB=/opt/dexhand/libs/libdexhandpro.so
 ```
 
 注意：
 
-- 加载失败或 DLL 接口版本不匹配时抛出 `DexHandLibraryError`。
+- 加载失败或原生库 ABI 版本不匹配时抛出 `DexHandLibraryError`，异常消息会给出权限或依赖排查提示。
 
 ---
 
@@ -159,17 +176,28 @@ $env:DEXHANDPRO_DLL = "D:\path\to\Release\dexhandpro.dll"
 ### 3.1 第一步：查找网卡
 
 ```powershell
+# Windows
 python examples/scan.py
+```
+
+```bash
+# Linux
+python3 examples/scan.py
 ```
 
 输出中 `EtherCAT` 列为 `yes` 的网口即为可用网口，其 `interface` 名称用于后续所有示例：
 
 ```text
+# Windows
 interface                                            description                                    EtherCAT
 \Device\NPF_{EAD2C5A0-...}                           Intel(R) Ethernet Connection (24) I219-V       yes
+
+# Linux
+interface                                            description                                    EtherCAT
+eth1                                                 Intel(R) I210 Gigabit Network Connection        yes
 ```
 
-未检测到从站时，脚本返回非零退出码，并提示检查供电、网线、Npcap 和管理员权限。
+未检测到从站时，脚本返回非零退出码，并提示检查供电、网线，以及网卡访问权限（Windows 上的 Npcap / 管理员权限，Linux 上的 root / `CAP_NET_RAW`）。
 
 ### 3.2 读取状态
 
@@ -233,7 +261,13 @@ hand.move_joint(JointId.INDEX_DIST_COUPLED, JointTarget(
 所有示例都支持指定网卡；不传递时自动选择唯一带从站的网口：
 
 ```powershell
+# Windows
 python examples/status_poll.py "\Device\NPF_{EAD2C5A0-...}"
+```
+
+```bash
+# Linux
+python3 examples/status_poll.py eth1
 ```
 
 ### 3.5 初始化顺序
@@ -1171,7 +1205,7 @@ class DexHandLibraryError(RuntimeError):
     ...
 ```
 
-原生库无法加载、DLL 与 Python 包版本不匹配时抛出。
+原生库无法加载、原生库与 Python 包 ABI 版本不匹配时抛出。
 
 构造 `DexHandPro` 时传入空 `if_name` 会抛出 `ValueError`。
 
@@ -1304,25 +1338,17 @@ class ErrorInfo:
 def restart_device(self, part: FingerPart) -> None: ...
 ```
 
-失能并重新使能指定 CTRL 设备。
+对指定 CTRL 控制板执行一次"下电 → 约 100 ms → 上电"的重启（SDO 命令）。这是 CTRL 板的上电/下电，不是电机使能；电机使能由运动命令中的 `enable` 字段控制。CTRL 启动约需 3 秒，重启后应等待约 3 秒再下发运动命令。
 
-### 12.2 set_ctrl_enable
-
-```python
-def set_ctrl_enable(self, part: FingerPart, on: bool = True) -> None: ...
-```
-
-使能或失能指定 CTRL 设备。
-
-### 12.3 restart_all_ctrl
+### 12.2 restart_all_ctrl
 
 ```python
 def restart_all_ctrl(self) -> None: ...
 ```
 
-失能并重新使能全部 CTRL 设备。
+对全部 CTRL 控制板执行一次"下电 → 约 500 ms → 上电"的重启，启动等待同上（约 3 秒）。
 
-### 12.4 request_restart_all_ec
+### 12.3 request_restart_all_ec
 
 ```python
 def request_restart_all_ec(self) -> None: ...
@@ -1333,7 +1359,7 @@ def request_restart_all_ec(self) -> None: ...
 - 手板立即复位，可能不会返回应答；
 - 调用后需要 `disconnect()` 并重新 `connect()`。
 
-### 12.5 set_fill_light
+### 12.4 set_fill_light
 
 ```python
 def set_fill_light(self, brightness: int) -> None: ...
@@ -1451,13 +1477,48 @@ class PusherField(IntEnum):
 
 ---
 
-## 14. 已知限制
+## 14. 安全须知
+
+> **本 SDK 用于控制真实机械手。** 错误使用可能导致人身伤害、设备损坏或财产损失。集成前必须完成系统级风险评估，并落实本章要求。
+
+### 14.1 软件急停不是安全级急停
+
+- `emergency_stop()` 通过通信链路下发零力矩并清空命令，属于**软件掉力**，不是安全级急停；
+- 不满足 ISO 13850 等安全标准，**不锁存**——重新下发使能命令即可恢复运动；
+- 通信中断、控制板掉电或上位机程序崩溃时，软件急停无法生效；
+- **不得作为唯一的安全措施。** 系统必须配备独立的物理急停按钮和主电源切断装置，并保证通信丢失时由驱动器或硬件侧进入安全状态。
+
+### 14.2 运行前检查
+
+- 确认运动范围内无人和障碍物，手部固定牢靠，工件与夹具不会松脱；
+- 确认供电电压稳定、接地良好；
+- 按 [7.1](#71-jointid) 和 [7.2](#72-jointtarget) 的范围设置角度、速度、电流及 `kp` / `kd`，不要超出协议范围；
+- 首次运行或更换固件后，先用小角度、低速度、低电流验证运动方向与限位。
+
+### 14.3 运行中约束
+
+- 不要在状态回调或错误回调中执行运动命令或耗时操作；
+- EtherCAT 不支持热插拔，插拔网线、上下电都必须在断开控制连接后进行；
+
+### 14.4 电气与环境
+
+- 控制器与手部应良好接地，操作前释放人体静电（ESD）；
+- 避免在潮湿、粉尘、易燃易爆或强电磁干扰环境中使用；
+- 上电顺序：固定网线 → 手部供电 → 调用 `connect()`；断电顺序相反。
+
+### 14.5 责任边界
+
+- SDK 仅提供控制接口，不包含系统级安全设计；
+
+---
+
+## 15. 已知限制
 
 1. **参数不自动校验。** 超出协议范围的参数不会被裁剪，行为由设备决定；请按[第 7.1 节](#71-jointid)和[第 7.2 节](#72-jointtarget)的范围传入。
 2. **计数枚举不是有效索引。** 不要向接口传入 `JointId.COUNT`、`PusherId.COUNT`、`TactilePart.COUNT`、`FingerPart.COUNT`。
 3. **回调与 GIL。** 状态/错误回调从 SDK 线程进入 Python，需要获取 GIL；不在回调中做耗时操作，高频场景优先轮询。
 4. **关闭顺序。** 推荐 `disconnect()` → `close()`；上下文管理器只保证 `close()`。
-5. **以源码目录分发。** 当前发布包不包含 wheel；通过 `sys.path` / `PYTHONPATH` 使用，DLL 查找规则见 [2.3](#23-原生库加载顺序)。
+5. **以源码目录分发。** 当前发布包不包含 wheel；通过 `sys.path` / `PYTHONPATH` 使用，原生库查找规则见 [2.3](#23-原生库加载顺序)。
 6. **关闭后行为不同。** 状态属性返回安全默认值，`get_*` / `set_*` / `error_code` / `error_message` 抛出 `DexHandError`。
 7. **`THUMB_MIDD` 拼写。** 沿用既有拼写，含义为拇指中端。
 8. **推杆到位判断。** `target_reached` 是驱动器原始状态位，本驱动器不保证置位；使用编码器位置判断到位。
@@ -1465,15 +1526,17 @@ class PusherField(IntEnum):
 
 ---
 
-## 15. 常见问题
+## 16. 常见问题
 
-### 15.1 加载 DLL 失败
+### 16.1 加载原生库失败
+
+Windows：
 
 ```text
 [WinError 193] %1 is not a valid Win32 application
 ```
 
-使用了 32 位 Python 加载 x64 DLL。请改用 64 位 Python。
+使用了 32 位 Python 加载 x64 原生库。请改用 64 位 Python。
 
 ```text
 [WinError 126] 找不到指定的模块
@@ -1481,20 +1544,37 @@ class PusherField(IntEnum):
 
 依赖 DLL 缺失，通常是 Npcap 或 VC++ 运行库。安装 Npcap（勾选 WinPcap API 兼容模式）和 Microsoft Visual C++ 2015–2022 x64 Redistributable。
 
+Linux：
+
 ```text
-dexhandpro.dll is missing C ABI symbols
+OSError: libdexhandpro.so: cannot open shared object file: No such file or directory
 ```
 
-加载到了错误版本的 DLL。确认 `DEXHANDPRO_DLL` 指向本 SDK 的 `dexhandpro.dll`。
+原生库路径不对，或依赖缺失。确认 `libs/linux/libdexhandpro.so` 存在；用 `ldd libs/linux/libdexhandpro.so` 检查缺失依赖；也可用 `DEXHANDPRO_LIB` 指定完整路径。
 
-### 15.2 扫描不到网口或从站
+```text
+OSError: /path/to/libdexhandpro.so: cannot open shared object file
+```
+
+同上。若 `ldd` 显示 `not found`，安装对应运行库（通常只需系统自带的 `libstdc++`）。
+
+通用：
+
+```text
+native library is missing C ABI symbols
+```
+
+加载到了错误版本的原生库。确认 `DEXHANDPRO_LIB` / `DEXHANDPRO_DLL` 指向本 SDK 提供的库，并与 `dexhand` 包的 ABI 版本匹配。
+
+### 16.2 扫描不到网口或从站
 
 - 确认网线、手部供电和 EtherCAT 拓扑；
-- 确认已安装 Npcap，并以管理员权限运行；
+- Windows：确认已安装 Npcap，并以管理员权限运行；
+- Linux：确认以 root 运行或已授予 `CAP_NET_RAW`；确认网口未被 NetworkManager 接管（见 [2.1](#21-环境要求)）；
 - 先运行 `examples/scan.py`，检查网口是否出现在列表中；
 - 如果仍为空，检查是否有其他程序占用了网卡。
 
-### 15.3 推杆相关
+### 16.3 推杆相关
 
 **`online` 一直是 `False`**
 
@@ -1516,7 +1596,7 @@ if abs(state.pos - target_um) <= 250:
 - 确认 `state.fault` 为 `False`，否则先 `reset_pusher_fault()`；
 - 确认目标位置在行程限位内。
 
-### 15.4 MODE_CONFLICT
+### 16.4 MODE_CONFLICT
 
 有关节处于使能状态时切换模式会冲突：
 
@@ -1526,7 +1606,7 @@ hand.set_control_mode(ControlMode.JOINT_POS, force=True)
 
 或先调用 `hand.emergency_stop()`。
 
-### 15.5 MODE_NOT_SET
+### 16.5 MODE_NOT_SET
 
 `reset_joints()` 和使能关节的命令需要非零力矩模式：
 
@@ -1534,14 +1614,15 @@ hand.set_control_mode(ControlMode.JOINT_POS, force=True)
 hand.set_control_mode(ControlMode.JOINT_POS)
 ```
 
-### 15.6 PDO 不健康 / 从站掉到 SAFE_OP
+### 16.6 PDO 不健康 / 从站掉到 SAFE_OP
 
 - 检查 `get_diagnostics()` 中的 `expected_wkc` 与 `last_wkc`；
 - 确认 PDO 周期内没有长时间阻塞总线；
-- 检查 Npcap、管理员权限和网线连接；
+- Windows 检查 Npcap 和管理员权限；Linux 检查 root / `CAP_NET_RAW` 以及网口是否被其他程序占用；
+- 检查网线连接；
 - 断开后重新 `connect()`。
 
-### 15.7 状态回调不触发
+### 16.7 状态回调不触发
 
 - 确认已调用 `set_status_callback(callback)`；
 - 确认 `connect(listen=True)`，或 `listen(True)` / `set_realtime_response(rate, True)`；
@@ -1550,7 +1631,7 @@ hand.set_control_mode(ControlMode.JOINT_POS)
 
 ---
 
-## 16. 单位约定
+## 17. 单位约定
 
 | **数据**                                                    | **单位**          |
 | ----------------------------------------------------------- | ----------------- |
@@ -1571,9 +1652,10 @@ hand.set_control_mode(ControlMode.JOINT_POS)
 
 ---
 
-## 17. 修订记录
+## 18. 修订记录
 
 | **日期**   | **版本** | **说明**                                                                                                                                                                                                                                    |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-11-13 | 1.0.1    | 全面校对接口：修正版本接口名称、包结构、示例清单、`get_hand_info` 缓存说明；按协议补充关节角度/速度/电流范围；补充 `move_joint` 耦合规则、`listen` / `set_realtime_response` 共用开关、序列号解析、推杆 `online` 与 `target_reached` 说明。 |
-| 2026-11-12 | 1.0.1    | 初版 Python 用户接口文档。                                                                                                                                                                                                                  |
+| 2026-11-19 | 1.0.0    | 增加 Linux（Ubuntu 22.04/24.04 x86_64）支持说明；新增安全须知章节；移除已删除的 `set_ctrl_enable`；修正 CTRL 重启语义；统一"原生库"表述；发布包原生库目录更名为 `libs/`。 |
+| 2026-11-13 | 1.0.0    | 全面校对接口：修正版本接口名称、包结构、示例清单、`get_hand_info` 缓存说明；按协议补充关节角度/速度/电流范围；补充 `move_joint` 耦合规则、`listen` / `set_realtime_response` 共用开关、序列号解析、推杆 `online` 与 `target_reached` 说明。 |
+| 2026-11-12 | 1.0.0    | 初版 Python 用户接口文档。                                                                                                                                                                                                                  |
